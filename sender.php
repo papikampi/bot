@@ -17,18 +17,19 @@ $config = json_decode(file_get_contents($configFile), true);
 $BOT_TOKEN = $config['bot_token'];
 $TARGETS = $config['target_channels'] ?? [];
 $SOURCES = $config['source_channels'] ?? [];
+$FOOTER = $config['footer_text'] ?? '';
 
 $STATE_FILE = __DIR__ . '/storage/state.json';
 if (!file_exists(dirname($STATE_FILE))) mkdir(dirname($STATE_FILE), 0777, true);
 $state = file_exists($STATE_FILE) ? json_decode(file_get_contents($STATE_FILE), true) : [];
 
-// تابع فوروارد پیام
-function forwardMessage($bot, $chat, $from_chat_id, $message_id) {
-    $url = "https://api.telegram.org/bot$bot/forwardMessage";
-    file_get_contents($url."?chat_id=$chat&from_chat_id=$from_chat_id&message_id=$message_id");
+// تابع ارسال پیام
+function sendMessage($bot, $chat, $text) {
+    $url = "https://api.telegram.org/bot$bot/sendMessage";
+    file_get_contents($url."?chat_id=$chat&text=".urlencode($text)."&parse_mode=HTML");
 }
 
-// بررسی کانال‌ها و فوروارد پیام‌ها
+// بررسی کانال‌ها و ارسال پیام‌ها
 foreach ($SOURCES as $src) {
     $src = ltrim($src, '@');
     $lastSeen = $state[$src] ?? 0;
@@ -40,8 +41,17 @@ foreach ($SOURCES as $src) {
     foreach ($matches[1] as $id) {
         if ($id <= $lastSeen) continue;
 
-        // فوروارد کردن پیام به همه کانال‌های هدف
-        foreach ($TARGETS as $t) forwardMessage($BOT_TOKEN, $t, $src, $id);
+        // استخراج متن پیام
+        preg_match("/$id.*?tgme_widget_message_text.*?>(.*?)<\/div/s", $html, $m);
+        $text = isset($m[1]) ? strip_tags($m[1]) : '';
+
+        // حذف لینک‌های اضافی و نام کانال خودش
+        $text = preg_replace('/https?:\/\/t\.me\/[^\s]+/i', '', $text);
+
+        // اضافه کردن footer
+        $final = trim($text) . "\n\n" . $FOOTER;
+
+        foreach ($TARGETS as $t) sendMessage($BOT_TOKEN, $t, $final);
 
         $lastSeen = $id;
     }
@@ -49,6 +59,6 @@ foreach ($SOURCES as $src) {
     $state[$src] = $lastSeen;
 }
 
-// ذخیره آخرین وضعیت
+// ذخیره وضعیت
 file_put_contents($STATE_FILE, json_encode($state));
 echo "OK";
