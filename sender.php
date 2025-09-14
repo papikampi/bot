@@ -45,11 +45,18 @@ foreach ($SOURCES as $src) {
         preg_match("/$id.*?tgme_widget_message_text.*?>(.*?)<\/div/s", $html, $m);
         $text = isset($m[1]) ? strip_tags($m[1]) : '';
 
-        // حذف لینک‌های اضافی و نام کانال خودش
-        $text = preg_replace('/https?:\/\/t\.me\/[^\s]+/i', '', $text);
+        // حذف لینک‌ها، @username و هر چیزی که به کانال یا وب اشاره دارد
+        $text = preg_replace([
+            '/https?:\/\/\S+/i',  // حذف لینک‌ها
+            '/www\.\S+/i',         // حذف www
+            '/@\S+/i'              // حذف نام کاربری
+        ], '', $text);
 
-        // اضافه کردن footer
-        $final = trim($text) . "\n\n" . $FOOTER;
+        // trim کردن اضافات
+        $text = trim($text);
+
+        // اضافه کردن footer خودت
+        $final = $text . "\n\n" . $FOOTER;
 
         foreach ($TARGETS as $t) sendMessage($BOT_TOKEN, $t, $final);
 
